@@ -1,0 +1,204 @@
+name: iOS Build & Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'App version (e.g. 1.0.0)'
+        required: true
+        default: '1.0.0'
+      build_number:
+        description: 'Build number'
+        required: true
+        default: '1'
+      release_notes:
+        description: 'Release notes'
+        required: false
+        default: 'New release build'
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+
+jobs:
+  ios-build:
+    name: 🎉 iOS Build
+    runs-on: macos-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 🎯 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          architecture: x64
+          cache: true
+
+      - name: 📁 Create Flutter project structure
+        run: |
+          mkdir -p assets/images assets/icons ios android test lib
+          
+      - name: 📝 Create pubspec.yaml
+        run: |
+          cat > pubspec.yaml << 'EOL'
+          name: music_app
+          description: A music player application built with Flutter.
+          publish_to: 'none'
+          version: 1.0.0+1
+
+          environment:
+            sdk: '>=3.0.0 <4.0.0'
+
+          dependencies:
+            flutter:
+              sdk: flutter
+            cupertino_icons: ^1.0.2
+            just_audio: ^0.9.36
+            audio_service: ^0.18.12
+            path_provider: ^2.1.1
+            shared_preferences: ^2.2.2
+            provider: ^6.1.1
+            cached_network_image: ^3.3.0
+
+          dev_dependencies:
+            flutter_test:
+              sdk: flutter
+            flutter_lints: ^2.0.0
+
+          flutter:
+            uses-material-design: true
+            assets:
+              - assets/images/
+              - assets/icons/
+          EOL
+
+      - name: 📱 Create main.dart
+        run: |
+          cat > lib/main.dart << 'EOL'
+          import 'package:flutter/material.dart';
+
+          void main() {
+            runApp(const MyApp());
+          }
+
+          class MyApp extends StatelessWidget {
+            const MyApp({super.key});
+
+            @override
+            Widget build(BuildContext context) {
+              return MaterialApp(
+                title: 'Music App',
+                theme: ThemeData(
+                  primarySwatch: Colors.blue,
+                  useMaterial3: true,
+                ),
+                home: const HomePage(),
+              );
+            }
+          }
+
+          class HomePage extends StatelessWidget {
+            const HomePage({super.key});
+
+            @override
+            Widget build(BuildContext context) {
+              return Scaffold(
+                appBar: AppBar(
+                  title: const Text('Music App'),
+                ),
+                body: const Center(
+                  child: Text('Welcome to Music App'),
+                ),
+              );
+            }
+          }
+          EOL
+
+      - name: 🔄 Initialize Flutter project
+        run: |
+          flutter create . --platforms=ios
+          flutter pub get
+          
+      - name: 🔒 Install Apple Certificate
+        uses: apple-actions/import-codesigning-certs@v1
+        with:
+          p12-file-base64: ${{ secrets.IOS_P12_CERTIFICATE }}
+          p12-password: ${{ secrets.IOS_P12_PASSWORD }}
+          keychain: build.keychain
+          keychain-password: ${{ secrets.KEYCHAIN_PASSWORD }}
+
+      - name: 📄 Install Provisioning Profile
+        uses: apple-actions/download-provisioning-profiles@v1
+        with:
+          profile: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+          
+      - name: 🔄 Update CocoaPods
+        run: |
+          pod repo update
+        working-directory: ios
+        
+      - name: 📱 Install CocoaPods dependencies
+        run: |
+          pod install --repo-update
+        working-directory: ios
+
+      - name: 🏷️ Update version
+        run: |
+          sed -i '' "s/^version: .*/version: ${{ github.event.inputs.version }}+${{ github.event.inputs.build_number }}/" pubspec.yaml
+          
+      - name: ⚙️ Update build settings
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.event.inputs.build_number }}" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ github.event.inputs.version }}" ios/Runner/Info.plist
+
+      - name: 🔨 Build iOS App
+        run: |
+          flutter build ios --release --no-codesign
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release DEVELOPMENT_TEAM="${{ secrets.TEAM_ID }}" -archivePath build/ios/Runner.xcarchive archive
+          xcodebuild -exportArchive -archivePath build/ios/Runner.xcarchive -exportOptionsPlist ios/ExportOptions.plist -exportPath build/ios/iphoneos
+
+      - name: 📦 Package IPA
+        run: |
+          cd build/ios/iphoneos
+          mkdir Payload
+          mv Runner.app Payload/
+          zip -r -9 music_app_${{ github.event.inputs.version }}_${{ github.event.inputs.build_number }}.ipa Payload
+
+      - name: 🔍 Validate IPA
+        run: |
+          xcrun altool --validate-app -f build/ios/iphoneos/music_app_${{ github.event.inputs.version }}_${{ github.event.inputs.build_number }}.ipa -t ios --apiKey ${{ secrets.APP_STORE_CONNECT_KEY_ID }} --apiIssuer ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+
+      - name: ⬆️ Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: music-app-ipa
+          path: build/ios/iphoneos/music_app_${{ github.event.inputs.version }}_${{ github.event.inputs.build_number }}.ipa
+          retention-days: 5
+
+      - name: 🚀 Create Release
+        uses: softprops/action-gh-release@v1
+        if: github.event.inputs.environment == 'production'
+        with:
+          files: build/ios/iphoneos/music_app_${{ github.event.inputs.version }}_${{ github.event.inputs.build_number }}.ipa
+          tag_name: v${{ github.event.inputs.version }}
+          name: Release v${{ github.event.inputs.version }}
+          body: |
+            Music App Release v${{ github.event.inputs.version }} (Build ${{ github.event.inputs.build_number }})
+            
+            Environment: ${{ github.event.inputs.environment }}
+            
+            ${{ github.event.inputs.release_notes }}
+            
+            SHA: ${{ github.sha }}
+          draft: false
+          prerelease: ${{ github.event.inputs.environment != 'production' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
