@@ -2,6 +2,9 @@ import SwiftUI
 
 struct NowPlayingView: View {
     @StateObject private var viewModel = NowPlayingViewModel()
+    @State private var showingLyrics = false
+    @State private var showingEqualizer = false
+    @State private var showingShareSheet = false
     
     // 支持预览的初始化方法
     init(viewModel: NowPlayingViewModel? = nil) {
@@ -12,7 +15,7 @@ struct NowPlayingView: View {
     
     var body: some View {
         VStack(spacing: 20) {
-            // 顶部标题和返回按钮
+            // 顶部标题和按钮
             HStack {
                 Button(action: {
                     // 返回操作
@@ -29,9 +32,33 @@ struct NowPlayingView: View {
                 
                 Spacer()
                 
-                Button(action: {
-                    // 更多选项
-                }) {
+                Menu {
+                    Button(action: {
+                        showingLyrics.toggle()
+                    }) {
+                        Label("歌词", systemImage: "text.quote")
+                    }
+                    
+                    Button(action: {
+                        showingEqualizer.toggle()
+                    }) {
+                        Label("均衡器", systemImage: "slider.horizontal.3")
+                    }
+                    
+                    if !viewModel.isDownloaded {
+                        Button(action: {
+                            viewModel.downloadSong()
+                        }) {
+                            Label("下载", systemImage: "arrow.down.circle")
+                        }
+                    }
+                    
+                    Button(action: {
+                        showingShareSheet.toggle()
+                    }) {
+                        Label("分享", systemImage: "square.and.arrow.up")
+                    }
+                } label: {
                     Image(systemName: "ellipsis")
                         .font(.title2)
                         .foregroundColor(.primary)
@@ -39,42 +66,51 @@ struct NowPlayingView: View {
             }
             .padding(.horizontal)
             
-            Spacer()
-            
-            // 专辑封面
-            ZStack {
-                Circle()
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(width: 280, height: 280)
-                
-                if let currentSong = viewModel.currentSong {
-                    Text(currentSong.title.prefix(1))
-                        .font(.system(size: 80))
-                        .fontWeight(.bold)
+            if showingLyrics {
+                LyricsView(viewModel: viewModel)
+            } else {
+                // 专辑封面
+                ZStack {
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 280, height: 280)
+                    
+                    if let currentSong = viewModel.currentSong {
+                        Text(currentSong.title.prefix(1))
+                            .font(.system(size: 80))
+                            .fontWeight(.bold)
+                    }
                 }
-            }
-            .padding()
-            
-            // 歌曲信息
-            VStack(spacing: 8) {
-                if let currentSong = viewModel.currentSong {
-                    Text(currentSong.title)
-                        .font(.title)
-                        .fontWeight(.bold)
-                    
-                    Text(currentSong.artist)
-                        .font(.title3)
-                        .foregroundColor(.secondary)
-                    
-                    if let album = currentSong.album {
-                        Text(album)
-                            .font(.subheadline)
+                .padding()
+                
+                // 歌曲信息
+                VStack(spacing: 8) {
+                    if let currentSong = viewModel.currentSong {
+                        Text(currentSong.title)
+                            .font(.title)
+                            .fontWeight(.bold)
+                        
+                        Text(currentSong.artist)
+                            .font(.title3)
+                            .foregroundColor(.secondary)
+                        
+                        if let album = currentSong.album {
+                            Text(album)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        // 下载进度指示器
+                        if !viewModel.isDownloaded && viewModel.downloadProgress > 0 {
+                            ProgressView(value: viewModel.downloadProgress)
+                                .progressViewStyle(LinearProgressViewStyle())
+                                .frame(width: 200)
+                        }
+                    } else {
+                        Text("未播放任何歌曲")
+                            .font(.title)
                             .foregroundColor(.secondary)
                     }
-                } else {
-                    Text("未播放任何歌曲")
-                        .font(.title)
-                        .foregroundColor(.secondary)
                 }
             }
             
@@ -85,7 +121,6 @@ struct NowPlayingView: View {
                 Slider(value: $viewModel.progress, in: 0...1) { editing in
                     viewModel.isSeeking = editing
                     if !editing {
-                        // 当用户完成拖动时，设置新的播放位置
                         viewModel.seekToPosition(progress: viewModel.progress)
                     }
                 }
@@ -163,6 +198,17 @@ struct NowPlayingView: View {
             Spacer()
         }
         .padding()
+        .sheet(isPresented: $showingEqualizer) {
+            EqualizerView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            if let song = viewModel.currentSong {
+                ShareSheet(items: ["\(song.title) - \(song.artist)"])
+            }
+        }
+        .onAppear {
+            viewModel.loadLyrics()
+        }
     }
     
     // 格式化时长
@@ -171,4 +217,15 @@ struct NowPlayingView: View {
         let seconds = Int(duration) % 60
         return String(format: "%d:%02d", minutes, seconds)
     }
+}
+
+// 分享功能
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

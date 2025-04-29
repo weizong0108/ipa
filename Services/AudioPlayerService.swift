@@ -2,12 +2,23 @@ import Foundation
 import AVFoundation
 import MediaPlayer
 
+enum RepeatMode {
+    case off, one, all
+}
+
 class AudioPlayerService {
     // 单例模式
     static let shared = AudioPlayerService()
     
-    // 音频播放器
-    private var audioPlayer: AVAudioPlayer?
+    // 播放器
+    private var player: AVQueuePlayer?
+    private var playerItems: [AVPlayerItem] = []
+    private var currentItemObserver: NSKeyValueObservation?
+    private var timeObserver: Any?
+    
+    // 音频引擎
+    private let audioEngine = AVAudioEngine()
+    private let playerNode = AVAudioPlayerNode()
     
     // 当前播放状态
     private(set) var isPlaying: Bool = false
@@ -19,18 +30,21 @@ class AudioPlayerService {
     private(set) var queue: [Song] = []
     
     // 播放模式
-    enum RepeatMode {
-        case off, one, all
-    }
-    
-    // 当前播放模式
     private(set) var repeatMode: RepeatMode = .off
     
     // 是否随机播放
     private(set) var isShuffleOn: Bool = false
     
+    // 预缓冲配置
+    private let prebufferDuration: TimeInterval = 15.0 // 预缓冲15秒
+    private var isPreBuffering = false
+    
+    // 音频格式
+    private let outputFormat = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)
+    
     private init() {
         setupAudioSession()
+        setupAudioEngine()
     }
     
     // 设置音频会话
@@ -47,6 +61,18 @@ class AudioPlayerService {
             setupNowPlaying()
         } catch {
             print("设置音频会话失败: \(error)")
+        }
+    }
+    
+    // 设置音频引擎
+    private func setupAudioEngine() {
+        audioEngine.attach(playerNode)
+        audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: outputFormat)
+        
+        do {
+            try audioEngine.start()
+        } catch {
+            print("启动音频引擎失败: \(error)")
         }
     }
     
@@ -131,42 +157,104 @@ class AudioPlayerService {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
     
-    // 播放歌曲
-    func play(song: Song) {
-        guard let audioURL = song.audioURL else {
-            print("歌曲没有音频URL")
-            return
+    // 播放音频
+    func play(_ song: Song) {
+        guard let url = URL(string: song.audioURL) else { return }
+        
+        // 检查缓存
+        if let cachedURL = AudioCacheManager.shared.getCachedAudio(for: url) {
+            playFromURL(cachedURL)
+        } else {
+            // 开始下载并缓存
+            AudioCacheManager.shared.cacheAudio(from: url) { [weak self] result in
+                switch result {
+                case .success(let cachedURL):
+                    self?.playFromURL(cachedURL)
+                case .failure(let error):
+                    print("缓存音频失败: \(error)")
+                }
+            }
         }
         
-        // 实际项目中应从网络或本地加载音频文件
-        // 这里仅作为示例，使用本地资源URL
-        guard let url = URL(string: audioURL) else {
-            print("无效的音频URL")
-            return
-        }
+        currentSong = song
         
-        do {
-            audioPlayer = try AVAudioPlayer(contentsOf: url)
-            audioPlayer?.delegate = self
-            audioPlayer?.prepareToPlay()
-            audioPlayer?.play()
-            
-            currentSong = song
-            isPlaying = true
-            
-            // 更新锁屏/控制中心信息
-            updateNowPlayingInfo()
-            
-            // 通知播放状态变化
-            NotificationCenter.default.post(name: .audioPlayerStateChanged, object: nil)
-        } catch {
-            print("播放音频失败: \(error)")
+        // 预加载队列中的下一首歌
+        preloadNextSongs()
+    }
+    
+    // 从URL播放
+    private func playFromURL(_ url: URL) {
+        guard let asset = try? AVAudioFile(forReading: url) else { return }
+        
+        // 检查音频格式是否需要转换
+        if asset.processingFormat != outputFormat {
+            convertAndPlay(asset)
+        } else {
+            playAudioFile(asset)
         }
     }
     
-    // 暂停播放
+    // 转换并播放音频
+    private func convertAndPlay(_ audioFile: AVAudioFile) {
+        let format = audioFile.processingFormat
+        let outputFormat = self.outputFormat!
+        
+        do {
+            let frameCount = AVAudioFrameCount(audioFile.length)
+            let inputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)!
+            try audioFile.read(into: inputBuffer)
+            
+            let converter = AVAudioConverter(from: format, to: outputFormat)!
+            let ratio = Float(outputFormat.sampleRate) / Float(format.sampleRate)
+            let outputFrameCapacity = AVAudioFrameCount(Float(frameCount) * ratio)
+            let outputBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: outputFrameCapacity)!
+            
+            var error: NSError?
+            let status = converter.convert(to: outputBuffer, error: &error) { inNumPackets, outStatus in
+                outStatus.pointee = .haveData
+                return inputBuffer
+            }
+            
+            if status == .haveData {
+                playerNode.scheduleBuffer(outputBuffer) {
+                    self.isPlaying = true
+                }
+                playerNode.play()
+            }
+        } catch {
+            print("转换音频格式失败: \(error)")
+        }
+    }
+    
+    // 直接播放音频文件
+    private func playAudioFile(_ audioFile: AVAudioFile) {
+        do {
+            let buffer = AVAudioPCMBuffer(pcmFormat: audioFile.processingFormat, frameCapacity: AVAudioFrameCount(audioFile.length))!
+            try audioFile.read(into: buffer)
+            
+            playerNode.scheduleBuffer(buffer) {
+                self.isPlaying = true
+            }
+            playerNode.play()
+        } catch {
+            print("播放音频文件失败: \(error)")
+        }
+    }
+    
+    // 预加载下一首歌
+    private func preloadNextSongs() {
+        guard let currentIndex = queue.firstIndex(where: { $0.id == currentSong?.id }),
+              currentIndex + 1 < queue.count else { return }
+        
+        let nextSongs = Array(queue[currentIndex + 1..<min(currentIndex + 3, queue.count)])
+        let urls = nextSongs.compactMap { URL(string: $0.audioURL) }
+        
+        AudioCacheManager.shared.preloadAudio(urls: urls)
+    }
+    
+    // 暂停
     func pause() {
-        audioPlayer?.pause()
+        playerNode.pause()
         isPlaying = false
         
         // 更新锁屏/控制中心信息
@@ -178,7 +266,7 @@ class AudioPlayerService {
     
     // 继续播放
     func resume() {
-        audioPlayer?.play()
+        playerNode.play()
         isPlaying = true
         
         // 更新锁屏/控制中心信息
@@ -188,78 +276,62 @@ class AudioPlayerService {
         NotificationCenter.default.post(name: .audioPlayerStateChanged, object: nil)
     }
     
-    // 停止播放
+    // 停止
     func stop() {
-        audioPlayer?.stop()
-        audioPlayer = nil
-        currentSong = nil
+        playerNode.stop()
         isPlaying = false
         
         // 通知播放状态变化
         NotificationCenter.default.post(name: .audioPlayerStateChanged, object: nil)
     }
     
+    // 跳转到指定时间
+    func seek(to time: TimeInterval) {
+        // 实现音频跳转逻辑
+    }
+    
     // 播放下一首
     func playNext() {
-        guard !queue.isEmpty else { return }
-        
-        if let currentIndex = currentSongIndex, currentIndex < queue.count - 1 {
-            let nextSong = queue[currentIndex + 1]
-            play(song: nextSong)
-        } else if repeatMode == .all {
-            // 循环播放模式，从头开始
-            let firstSong = queue.first!
-            play(song: firstSong)
+        guard let currentIndex = queue.firstIndex(where: { $0.id == currentSong?.id }),
+              currentIndex + 1 < queue.count else {
+            if repeatMode == .all {
+                // 循环播放，从头开始
+                if let firstSong = queue.first {
+                    play(firstSong)
+                }
+            }
+            return
         }
+        
+        play(queue[currentIndex + 1])
     }
     
     // 播放上一首
     func playPrevious() {
-        guard !queue.isEmpty else { return }
+        guard let currentIndex = queue.firstIndex(where: { $0.id == currentSong?.id }),
+              currentIndex > 0 else { return }
         
-        if let currentIndex = currentSongIndex, currentIndex > 0 {
-            let previousSong = queue[currentIndex - 1]
-            play(song: previousSong)
-        } else if repeatMode == .all {
-            // 循环播放模式，从末尾开始
-            let lastSong = queue.last!
-            play(song: lastSong)
-        }
+        play(queue[currentIndex - 1])
     }
     
     // 设置播放队列
-    func setQueue(songs: [Song], startIndex: Int = 0) {
-        guard !songs.isEmpty, startIndex < songs.count else { return }
-        
+    func setQueue(_ songs: [Song], startFrom index: Int = 0) {
         queue = songs
-        play(song: songs[startIndex])
-    }
-    
-    // 添加歌曲到队列
-    func addToQueue(song: Song) {
-        queue.append(song)
-        
-        // 如果当前没有播放，则开始播放
-        if currentSong == nil {
-            play(song: song)
+        if index < songs.count {
+            play(songs[index])
         }
     }
     
     // 切换随机播放
     func toggleShuffle() {
         isShuffleOn.toggle()
-        
         if isShuffleOn {
-            // 保存当前歌曲
-            let current = currentSong
-            
-            // 随机排序队列
             queue.shuffle()
-            
-            // 如果有当前歌曲，将其移到队列开头
-            if let current = current, let index = queue.firstIndex(where: { $0.id == current.id }) {
-                queue.remove(at: index)
-                queue.insert(current, at: 0)
+            // 确保当前歌曲在随机后的队列中的位置正确
+            if let currentSong = currentSong,
+               let currentIndex = queue.firstIndex(where: { $0.id == currentSong.id }) {
+                queue.remove(at: currentIndex)
+                queue.insert(currentSong, at: 0)
             }
         }
         
@@ -270,12 +342,9 @@ class AudioPlayerService {
     // 切换重复模式
     func toggleRepeatMode() {
         switch repeatMode {
-        case .off:
-            repeatMode = .all
-        case .all:
-            repeatMode = .one
-        case .one:
-            repeatMode = .off
+        case .off: repeatMode = .all
+        case .all: repeatMode = .one
+        case .one: repeatMode = .off
         }
         
         // 通知播放状态变化
@@ -284,32 +353,23 @@ class AudioPlayerService {
     
     // 获取当前播放进度
     var currentProgress: Double {
-        guard let player = audioPlayer, player.duration > 0 else { return 0 }
-        return player.currentTime / player.duration
+        guard let player = player, player.currentItem != nil else { return 0 }
+        return player.currentTime() / player.currentItem!.duration
     }
     
     // 获取当前播放时间
     var currentTime: TimeInterval {
-        return audioPlayer?.currentTime ?? 0
+        return player?.currentTime() ?? 0
     }
     
     // 获取总时长
     var duration: TimeInterval {
-        return audioPlayer?.duration ?? 0
+        return player?.currentItem?.duration ?? 0
     }
     
-    // 设置播放位置
-    func seek(to time: TimeInterval) {
-        audioPlayer?.currentTime = min(max(0, time), duration)
-        
-        // 更新锁屏/控制中心信息
-        updateNowPlayingInfo()
-    }
-    
-    // 获取当前歌曲在队列中的索引
-    private var currentSongIndex: Int? {
-        guard let currentSong = currentSong else { return nil }
-        return queue.firstIndex(where: { $0.id == currentSong.id })
+    deinit {
+        stop()
+        audioEngine.stop()
     }
 }
 
