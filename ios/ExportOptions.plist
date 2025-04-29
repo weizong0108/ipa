@@ -10,8 +10,16 @@
     <false/>
     <key>provisioningProfiles</key>
     <dict>
-        <key>com.yourcompany.musicapp</key>
-        <string>${{ secrets.PROVISIONING_PROFILE_NAME }}</string>
+        <key>com.gac.musicapp</key>
+        <string>GAC Music App Distribution</string>
     </dict>
+    <key>signingCertificate</key>
+    <string>Apple Distribution</string>
+    <key>signingStyle</key>
+    <string>manual</string>
+    <key>stripSwiftSymbols</key>
+    <true/>
+    <key>thinning</key>
+    <string>&lt;none&gt;</string>
 </dict>
 </plist> 
