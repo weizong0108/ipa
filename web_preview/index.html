@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aurora Music - 网页预览版</title>
+    <style>
+        :root {
+            --primary-color: #6a11cb;
+            --secondary-color: #2575fc;
+            --background-color: #f8f9fa;
+            --text-color: #333;
+            --card-bg: #fff;
+            --border-radius: 12px;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            padding-bottom: 80px; /* 为播放控制栏留出空间 */
+        }
+
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 0 15px;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+            border-radius: 0 0 var(--border-radius) var(--border-radius);
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .tab-bar {
+            display: flex;
+            justify-content: space-around;
+            background-color: var(--card-bg);
+            padding: 15px 0;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .tab-item {
+            text-align: center;
+            cursor: pointer;
+            padding: 5px 15px;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .tab-item.active {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+
+        .content-section {
+            display: none;
+            padding: 15px;
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        .song-card {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-radius: var(--border-radius);
+            margin-bottom: 10px;
+            background-color: var(--card-bg);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .song-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .song-cover {
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            object-fit: cover;
+            margin-right: 15px;
+        }
+
+        .song-info {
+            flex: 1;
+        }
+
+        .song-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .song-artist {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .search-bar {
+            display: flex;
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: none;
+            border-radius: var(--border-radius) 0 0 var(--border-radius);
+            font-size: 16px;
+            outline: none;
+        }
+
+        .search-button {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            padding: 0 20px;
+            border-radius: 0 var(--border-radius) var(--border-radius) 0;
+            cursor: pointer;
+        }
+
+        .album-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .album-card {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .album-card:hover {
+            transform: translateY(-3px);
+        }
+
+        .album-cover {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+        }
+
+        .album-info {
+            padding: 12px;
+        }
+
+        .album-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .album-artist {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .player-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: var(--card-bg);
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .player-controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        .now-playing {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
+
+        .mini-cover {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            margin-right: 10px;
+        }
+
+        .mini-info {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .mini-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+
+        .mini-artist {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .control-buttons {
+            display: flex;
+            align-items: center;
+        }
+
+        .control-button {
+            background: none;
+            border: none;
+            font-size: 24px;
+            margin: 0 10px;
+            cursor: pointer;
+            color: var(--primary-color);
+        }
+
+        .play-button {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Aurora Music</h1>
+            <p>网页预览版</p>
+        </header>
+
+        <div class="tab-bar">
+            <div class="tab-item active" data-tab="home">首页</div>
+            <div class="tab-item" data-tab="browse">浏览</div>
+            <div class="tab-item" data-tab="search">搜索</div>
+            <div class="tab-item" data-tab="profile">我的</div>
+            <div class="tab-item" data-tab="emby">NAS</div>
+        </div>
+
+        <!-- 首页内容 -->
+        <div class="content-section active" id="home-section">
+            <h2 style="margin-bottom: 15px;">推荐歌曲</h2>
+            <div class="song-list">
+                <div class="song-card" data-song-id="1">
+                    <img src="https://via.placeholder.com/50" alt="歌曲封面" class="song-cover">
+                    <div class="song-info">
+                        <div class="song-title">星辰大海</div>
+                        <div class="song-artist">黄霄雲</div>
+                    </div>
+                </div>
+                <div class="song-card" data-song-id="2">
+                    <img src="https://via.placeholder.com/50" alt="歌曲封面" class="song-cover">
+                    <div class="song-info">
+                        <div class="song-title">起风了</div>
+                        <div class="song-artist">买辣椒也用券</div>
+                    </div>
+                </div>
+                <div class="song-card" data-song-id="3">
+                    <img src="https://via.placeholder.com/50" alt="歌曲封面" class="song-cover">
+                    <div class="song-info">
+                        <div class="song-title">光年之外</div>
+                        <div class="song-artist">G.E.M.邓紫棋</div>
+                    </div>
+                </div>
+            </div>
+
+            <h2 style="margin: 20px 0 15px;">热门歌单</h2>
+            <div class="album-grid">
+                <div class="album-card">
+                    <img src="https://via.placeholder.com/150" alt="歌单封面" class="album-cover">
+                    <div class="album-info">
+                        <div class="album-title">流行热歌</div>
+                        <div class="album-artist">编辑推荐</div>
+                    </div>
+                </div>
+                <div class="album-card">
+                    <img src="https://via.placeholder.com/150" alt="歌单封面" class="album-cover">
+                    <div class="album-info">
+                        <div class="album-title">轻音乐集</div>
+                        <div class="album-artist">编辑推荐</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 浏览内容 -->
+        <div class="content-section" id="browse-section">
+            <h2 style="margin-bottom: 15px;">音乐分类</h2>
+            <div class="album-grid">
+                <div class="album-card">
+                    <img src="https://via.placeholder.com/150" alt="分类封面" class="album-cover">
+                    <div class="album-info">
+                        <div class="album-title">流行</div>
+                    </div>
+                </div>
+                <div class="album-card">
+                    <img src="https://via.placeholder.com/150" alt="分类封面" class="album-cover">
+                    <div class="album-info">
+                        <div class="album-title">摇滚</div>
+                    </div>
+                </div>
+                <div class="album-card">
+                    <img src="https://via.placeholder.com/150" alt="分类封面" class="album-cover">
+                    <div class="album-info">
+                        <div class="album-title">古典</div>
+                    </div>
+                </div>
+                <div class="album-card">
+                    <img src="https://via.placeholder.com/150" alt="分类封面" class="album-cover">
+                    <div class="album-info">
+                        <div class="album-title">电子</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 搜索内容 -->
+        <div class="content-section" id="search-section">
+            <div class="search-bar">
+                <input type="text" class="search-input" placeholder="搜索歌曲、专辑或艺术家">
+                <button class="search-button">搜索</button>
+            </div>
+            <h2 style="margin-bottom: 15px;">热门搜索</h2>
+            <div class="song-list">
+                <div class="song-card">
+                    <img src="https://via.placeholder.com/50" alt="歌曲封面" class="song-cover">
+                    <div class="song-info">
+                        <div class="song-title">晴天</div>
+                        <div class="song-artist">周杰伦</div>
+                    </div>
+                </div>
+                <div class="song-card">
+                    <img src="https://via.placeholder.com/50" alt="歌曲封面" class="song-cover">
+                    <div class="song-info">
+                        <div class="song-title">漠河舞厅</div>
+                        <div class="song-artist">柳爽</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 我的内容 -->
+        <div class="content-section" id="profile-section">
+            <div style="text-align: center; padding: 20px 0;">
+                <img src="https://via.placeholder.com/80" alt="用户头像" style="width: 80px; height: 80px; border-radius: 50%; margin-bottom: 10px;">
+                <h2>用户名</h2>
+                <p style="color: #666; margin-top: 5px;">普通会员</p>
+            </div>
+
+            <h3 style="margin: 20px 0 15px;">我的收藏</h3>
+            <div class="song-list">
+                <div class="song-card">
+                    <img src="https://via.placeholder.com/50" alt="歌曲封面" class="song-cover">
+                    <div class="song-info">
+                        <div class="song-title">可能</div>
+                        <div class="song-artist">程响</div>
+                    </div>
+                </div>
+                <div class="song-card">
+                    <img src="https://via.placeholder.com/50" alt="歌曲封面" class="song-cover">
+                    <div class="song-info">
+                        <div class="song-title">我曾</div>
+                        <div class="song-artist">隔壁老樊</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 播放控制栏 -->
+    <div class="player-bar">
+        <div class="player-controls">
+            <div class="now-playing">
+                <img src="https://via.placeholder.com/40" alt="当前播放歌曲封面" class="mini-cover">
+                <div class="mini-info">
+                    <div class="mini-title">星辰大海</div>
+                    <div class="mini-artist">黄霄雲</div>
+                </div>
+            </div>
+            <div class="control-buttons">
+                <button class="control-button">⏮</button>
+                <button class="play-button">▶</button>
+                <button class="control-button">⏭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Emby服务器连接内容 -->
+    <div class="content-section" id="emby-section">
+        <h2 style="margin-bottom: 15px;">连接到Emby服务器</h2>
+        
+        <div class="server-connection-form" style="background-color: var(--card-bg); padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px;">
+            <div style="margin-bottom: 15px;">
+                <label for="server-url" style="display: block; margin-bottom: 5px; font-weight: 600;">服务器地址</label>
+                <input type="text" id="server-url" placeholder="例如: http://192.168.1.100:8096" style="width: 100%; padding: 10px; border-radius: var(--border-radius); border: 1px solid #ddd; margin-bottom: 10px;">
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="username" style="display: block; margin-bottom: 5px; font-weight: 600;">用户名</label>
+                <input type="text" id="emby-username" placeholder="Emby用户名" style="width: 100%; padding: 10px; border-radius: var(--border-radius); border: 1px solid #ddd; margin-bottom: 10px;">
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="password" style="display: block; margin-bottom: 5px; font-weight: 600;">密码</label>
+                <input type="password" id="emby-password" placeholder="Emby密码" style="width: 100%; padding: 10px; border-radius: var(--border-radius); border: 1px solid #ddd; margin-bottom: 10px;">
+            </div>
+            
+            <button id="connect-button" style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; border: none; padding: 12px 20px; border-radius: var(--border-radius); width: 100%; font-weight: 600; cursor: pointer;">连接</button>
+        </div>
+        
+        <div id="connection-status" style="display: none; padding: 15px; background-color: var(--card-bg); border-radius: var(--border-radius); margin-bottom: 20px;">
+            <div id="server-info" style="margin-bottom: 10px;"></div>
+            <button id="disconnect-button" style="background: #f44336; color: white; border: none; padding: 8px 15px; border-radius: var(--border-radius); cursor: pointer;">断开连接</button>
+        </div>
+        
+        <div id="emby-content" style="display: none;">
+            <h3 style="margin: 20px 0 15px;">音乐库</h3>
+            <div id="music-libraries" class="album-grid">
+                <!-- 音乐库将在这里显示 -->
+            </div>
+            
+            <h3 style="margin: 20px 0 15px;">最近添加的音乐</h3>
+            <div id="recent-music" class="song-list">
+                <!-- 最近的音乐将在这里显示 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入数据模型 -->
+    <script src="data.js"></script>
+    
+    <!-- 引入Emby服务 -->
+    <script src="EmbyService.js"></script>
+    
+    <!-- 引入应用逻辑 -->
+    <script src="app.js"></script>
+</body>
+</html>
