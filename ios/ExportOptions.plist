@@ -5,7 +5,7 @@
     <key>method</key>
     <string>enterprise</string>
     <key>teamID</key>
-    <string>${{ secrets.TEAM_ID }}</string>
+    <string>$(TEAM_ID)</string>
     <key>compileBitcode</key>
     <false/>
     <key>provisioningProfiles</key>
