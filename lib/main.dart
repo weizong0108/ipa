@@ -64,11 +64,11 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp.router(
-        title: 'Music App',
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-          useMaterial3: true,
-        ),
+      title: 'Music App',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+      ),
         routerConfig: _router,
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,

@@ -39,12 +39,12 @@ jobs:
         run: |
           gem install cocoapods
           pod setup
-          
+        
       - name: Install CocoaPods dependencies
         run: |
           cd ios
           pod install
-          
+
       - name: Setup Keychain
         env:
           KEYCHAIN_NAME: build.keychain
@@ -106,4 +106,4 @@ jobs:
         with:
           name: app-release
           path: ios/build/ios/ipa/*.ipa
-          retention-days: 5 
+          retention-days: 5
