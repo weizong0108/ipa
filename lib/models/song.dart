@@ -42,4 +42,30 @@ class Song extends Equatable {
 
   @override
   List<Object?> get props => [id, title, artist, albumId, albumName, coverUrl, audioUrl, duration];
-} 
+
+  factory Song.fromJson(Map<String, dynamic> json) {
+    return Song(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      artist: json['artist'] as String,
+      albumId: json['albumId'] as String,
+      albumName: json['albumName'] as String,
+      coverUrl: json['coverUrl'] as String,
+      audioUrl: json['audioUrl'] as String,
+      duration: Duration(milliseconds: json['duration'] as int),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'artist': artist,
+      'albumId': albumId,
+      'albumName': albumName,
+      'coverUrl': coverUrl,
+      'audioUrl': audioUrl,
+      'duration': duration.inMilliseconds,
+    };
+  }
+}
