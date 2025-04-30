@@ -61,8 +61,9 @@ class ApiService {
             audioUrl: songJson['audioUrl'],
             duration: Duration(milliseconds: songJson['duration']),
           )).toList(),
+          createdBy: json['createdBy'] ?? '',
           createdAt: DateTime.parse(json['createdAt']),
-          updatedAt: DateTime.parse(json['updatedAt']),
+          playCount: json['playCount'] ?? 0,
         )).toList();
       }
       throw Exception('Failed to load playlists');
