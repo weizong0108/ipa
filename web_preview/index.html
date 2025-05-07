@@ -13,6 +13,12 @@
             --card-bg: #fff;
             --border-radius: 12px;
             --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            --accent-color: #ff7043;
+            --success-color: #4caf50;
+            --error-color: #f44336;
+            --dark-bg: #121212;
+            --dark-card: #1e1e1e;
+            --dark-text: #e0e0e0;
         }
 
         * {
@@ -26,12 +32,93 @@
             background-color: var(--background-color);
             color: var(--text-color);
             padding-bottom: 80px; /* 为播放控制栏留出空间 */
+            transition: background-color 0.3s ease, color 0.3s ease;
+            opacity: 0;
+            animation: fadeIn 0.5s ease forwards;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        /* 页面过渡动画 */
+        .content-section {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        
+        .content-section.active {
+            animation: slideIn 0.3s ease forwards;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 深色模式样式 */
+        body.dark-mode {
+            background-color: var(--dark-bg);
+            color: var(--dark-text);
+        }
+        
+        body.dark-mode .content-section,
+        body.dark-mode .tab-bar,
+        body.dark-mode .song-card,
+        body.dark-mode .album-card,
+        body.dark-mode .player-bar,
+        body.dark-mode .server-connection-form {
+            background-color: var(--dark-card);
+            color: var(--dark-text);
+        }
+        
+        body.dark-mode .song-artist,
+        body.dark-mode .album-artist,
+        body.dark-mode .mini-artist {
+            color: #aaa;
         }
 
         .container {
             max-width: 480px;
             margin: 0 auto;
             padding: 0 15px;
+            position: relative;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 480px) {
+            .container {
+                padding: 0 10px;
+            }
+            
+            header {
+                padding: 15px 0;
+            }
+            
+            .tab-item {
+                padding: 5px 10px;
+                font-size: 14px;
+            }
+            
+            .album-grid {
+                gap: 10px;
+            }
+        }
+        
+        @media (min-width: 768px) {
+            .container {
+                max-width: 720px;
+            }
+            
+            .album-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            
+            .player-controls,
+            .progress-container,
+            .time-display {
+                max-width: 720px;
+            }
         }
 
         header {
@@ -194,9 +281,64 @@
             background-color: var(--card-bg);
             padding: 15px;
             display: flex;
-            align-items: center;
+            flex-direction: column;
             box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
             z-index: 1000;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        .progress-container {
+            width: 100%;
+            max-width: 480px;
+            margin: 0 auto 10px auto;
+            height: 4px;
+            background-color: rgba(0, 0, 0, 0.1);
+            border-radius: 2px;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        body.dark-mode .progress-container {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 2px;
+            width: 30%;
+            transition: width 0.1s linear;
+        }
+        
+        .progress-thumb {
+            width: 12px;
+            height: 12px;
+            background: var(--secondary-color);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            left: 30%;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+            display: none;
+        }
+        
+        .progress-container:hover .progress-thumb {
+            display: block;
+        }
+        
+        .time-display {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 480px;
+            margin: 0 auto 5px auto;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        body.dark-mode .time-display {
+            color: #aaa;
         }
 
         .player-controls {
@@ -206,6 +348,7 @@
             width: 100%;
             max-width: 480px;
             margin: 0 auto;
+            position: relative;
         }
 
         .now-playing {
@@ -251,6 +394,15 @@
             margin: 0 10px;
             cursor: pointer;
             color: var(--primary-color);
+            transition: transform 0.2s ease, color 0.2s ease;
+        }
+        
+        .control-button:hover {
+            transform: scale(1.1);
+        }
+        
+        body.dark-mode .control-button {
+            color: var(--secondary-color);
         }
 
         .play-button {
@@ -264,6 +416,63 @@
             justify-content: center;
             border: none;
             cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .play-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 10px rgba(106, 17, 203, 0.5);
+        }
+        
+        .volume-control {
+            position: absolute;
+            right: 0;
+            top: -40px;
+            background-color: var(--card-bg);
+            padding: 10px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            display: none;
+            align-items: center;
+            z-index: 1001;
+            transition: background-color 0.3s ease;
+        }
+        
+        body.dark-mode .volume-control {
+            background-color: var(--dark-card);
+        }
+        
+        .volume-slider {
+            width: 80px;
+            margin: 0 10px;
+            -webkit-appearance: none;
+            height: 4px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 2px;
+            outline: none;
+        }
+        
+        body.dark-mode .volume-slider {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: var(--secondary-color);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .volume-icon {
+            font-size: 18px;
+            color: var(--primary-color);
+            cursor: pointer;
+        }
+        
+        body.dark-mode .volume-icon {
+            color: var(--secondary-color);
         }
     </style>
 </head>
@@ -272,6 +481,7 @@
         <header>
             <h1>Aurora Music</h1>
             <p>网页预览版</p>
+            <button id="theme-toggle" style="position: absolute; right: 20px; top: 20px; background: none; border: none; color: white; font-size: 20px; cursor: pointer;">🌙</button>
         </header>
 
         <div class="tab-bar">
@@ -414,6 +624,14 @@
 
     <!-- 播放控制栏 -->
     <div class="player-bar">
+        <div class="time-display">
+            <span id="current-time">0:00</span>
+            <span id="total-time">3:45</span>
+        </div>
+        <div class="progress-container" id="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+            <div class="progress-thumb" id="progress-thumb"></div>
+        </div>
         <div class="player-controls">
             <div class="now-playing">
                 <img src="https://via.placeholder.com/40" alt="当前播放歌曲封面" class="mini-cover">
@@ -423,53 +641,161 @@
                 </div>
             </div>
             <div class="control-buttons">
-                <button class="control-button">⏮</button>
-                <button class="play-button">▶</button>
-                <button class="control-button">⏭</button>
+                <button class="control-button" id="shuffle-button" title="随机播放">🔀</button>
+                <button class="control-button" id="prev-button">⏮</button>
+                <button class="play-button" id="play-button">▶</button>
+                <button class="control-button" id="next-button">⏭</button>
+                <button class="control-button" id="repeat-button" title="重复播放">🔁</button>
+                <button class="control-button" id="volume-button" title="音量控制">🔊</button>
+            </div>
+            <div class="volume-control" id="volume-control">
+                <span class="volume-icon">🔈</span>
+                <input type="range" min="0" max="100" value="80" class="volume-slider" id="volume-slider">
+                <span class="volume-icon">🔊</span>
             </div>
         </div>
     </div>
 
     <!-- Emby服务器连接内容 -->
     <div class="content-section" id="emby-section">
-        <h2 style="margin-bottom: 15px;">连接到Emby服务器</h2>
+        <h2 style="margin-bottom: 15px;">连接到Emby/NAS服务器</h2>
         
-        <div class="server-connection-form" style="background-color: var(--card-bg); padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px;">
+        <div class="server-connection-form" style="background-color: var(--card-bg); padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px; transition: background-color 0.3s ease;">
+            <div class="connection-tabs" style="display: flex; margin-bottom: 20px; border-bottom: 1px solid #eee;">
+                <div class="connection-tab active" data-connection="emby" style="padding: 10px 15px; cursor: pointer; border-bottom: 2px solid var(--primary-color); color: var(--primary-color); font-weight: 600;">Emby</div>
+                <div class="connection-tab" data-connection="jellyfin" style="padding: 10px 15px; cursor: pointer;">Jellyfin</div>
+                <div class="connection-tab" data-connection="plex" style="padding: 10px 15px; cursor: pointer;">Plex</div>
+                <div class="connection-tab" data-connection="dlna" style="padding: 10px 15px; cursor: pointer;">DLNA</div>
+            </div>
+            
             <div style="margin-bottom: 15px;">
                 <label for="server-url" style="display: block; margin-bottom: 5px; font-weight: 600;">服务器地址</label>
-                <input type="text" id="server-url" placeholder="例如: http://192.168.1.100:8096" style="width: 100%; padding: 10px; border-radius: var(--border-radius); border: 1px solid #ddd; margin-bottom: 10px;">
+                <div style="display: flex;">
+                    <input type="text" id="server-url" placeholder="例如: http://192.168.1.100:8096" style="flex: 1; padding: 10px; border-radius: var(--border-radius) 0 0 var(--border-radius); border: 1px solid #ddd; border-right: none;">
+                    <button id="scan-button" style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; border: none; padding: 0 15px; border-radius: 0 var(--border-radius) var(--border-radius) 0; cursor: pointer;">扫描</button>
+                </div>
+                <div id="server-scan-results" style="display: none; margin-top: 10px; max-height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: var(--border-radius); padding: 10px;">
+                    <!-- 扫描结果将在这里显示 -->
+                </div>
             </div>
             
             <div style="margin-bottom: 15px;">
-                <label for="username" style="display: block; margin-bottom: 5px; font-weight: 600;">用户名</label>
-                <input type="text" id="emby-username" placeholder="Emby用户名" style="width: 100%; padding: 10px; border-radius: var(--border-radius); border: 1px solid #ddd; margin-bottom: 10px;">
+                <label for="emby-username" style="display: block; margin-bottom: 5px; font-weight: 600;">用户名</label>
+                <input type="text" id="emby-username" placeholder="服务器用户名" style="width: 100%; padding: 10px; border-radius: var(--border-radius); border: 1px solid #ddd;">
             </div>
             
             <div style="margin-bottom: 15px;">
-                <label for="password" style="display: block; margin-bottom: 5px; font-weight: 600;">密码</label>
-                <input type="password" id="emby-password" placeholder="Emby密码" style="width: 100%; padding: 10px; border-radius: var(--border-radius); border: 1px solid #ddd; margin-bottom: 10px;">
+                <label for="emby-password" style="display: block; margin-bottom: 5px; font-weight: 600;">密码</label>
+                <input type="password" id="emby-password" placeholder="服务器密码" style="width: 100%; padding: 10px; border-radius: var(--border-radius); border: 1px solid #ddd;">
             </div>
             
-            <button id="connect-button" style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; border: none; padding: 12px 20px; border-radius: var(--border-radius); width: 100%; font-weight: 600; cursor: pointer;">连接</button>
+            <div style="margin-bottom: 15px;">
+                <label class="toggle-container" style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="remember-credentials" style="margin-right: 10px;">
+                    <span>记住登录信息</span>
+                </label>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button id="connect-button" style="flex: 1; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; border: none; padding: 12px 20px; border-radius: var(--border-radius); font-weight: 600; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease;">连接</button>
+                <button id="test-button" style="flex: 1; background: var(--accent-color); color: white; border: none; padding: 12px 20px; border-radius: var(--border-radius); font-weight: 600; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease;">测试连接</button>
+            </div>
         </div>
         
-        <div id="connection-status" style="display: none; padding: 15px; background-color: var(--card-bg); border-radius: var(--border-radius); margin-bottom: 20px;">
-            <div id="server-info" style="margin-bottom: 10px;"></div>
-            <button id="disconnect-button" style="background: #f44336; color: white; border: none; padding: 8px 15px; border-radius: var(--border-radius); cursor: pointer;">断开连接</button>
+        <div id="connection-status" style="display: none; padding: 15px; background-color: var(--card-bg); border-radius: var(--border-radius); margin-bottom: 20px; transition: background-color 0.3s ease;">
+            <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                <div style="width: 12px; height: 12px; border-radius: 50%; background-color: var(--success-color); margin-right: 10px;"></div>
+                <div style="font-weight: 600;">已连接</div>
+            </div>
+            <div id="server-info" style="margin-bottom: 15px;">
+                <div><strong>服务器:</strong> <span id="server-name">未知</span></div>
+                <div><strong>版本:</strong> <span id="server-version">未知</span></div>
+                <div><strong>操作系统:</strong> <span id="server-os">未知</span></div>
+            </div>
+            <button id="disconnect-button" style="background: var(--error-color); color: white; border: none; padding: 8px 15px; border-radius: var(--border-radius); cursor: pointer; transition: transform 0.2s ease;">断开连接</button>
         </div>
         
         <div id="emby-content" style="display: none;">
-            <h3 style="margin: 20px 0 15px;">音乐库</h3>
-            <div id="music-libraries" class="album-grid">
-                <!-- 音乐库将在这里显示 -->
+            <div class="content-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3>音乐库</h3>
+                <div class="view-options">
+                    <button class="view-button active" data-view="grid" style="background: none; border: none; cursor: pointer; font-size: 18px; margin-left: 10px;">📱</button>
+                    <button class="view-button" data-view="list" style="background: none; border: none; cursor: pointer; font-size: 18px; margin-left: 10px;">📋</button>
+                </div>
             </div>
             
-            <h3 style="margin: 20px 0 15px;">最近添加的音乐</h3>
+            <div id="music-libraries" class="album-grid">
+                <!-- 音乐库将在这里显示 -->
+                <div class="loading-indicator" style="text-align: center; padding: 20px;">
+                    <div class="spinner" style="width: 40px; height: 40px; border: 4px solid rgba(0,0,0,0.1); border-radius: 50%; border-top-color: var(--primary-color); animation: spin 1s linear infinite; margin: 0 auto 10px auto;"></div>
+                    <div>加载中...</div>
+                </div>
+            </div>
+            
+            <div class="content-header" style="display: flex; justify-content: space-between; align-items: center; margin: 20px 0 15px;">
+                <h3>最近添加的音乐</h3>
+                <button id="refresh-button" style="background: none; border: none; cursor: pointer; font-size: 18px;">🔄</button>
+            </div>
+            
             <div id="recent-music" class="song-list">
                 <!-- 最近的音乐将在这里显示 -->
+                <div class="empty-state" style="text-align: center; padding: 30px 0;">
+                    <div style="font-size: 48px; margin-bottom: 10px;">🎵</div>
+                    <div style="font-weight: 600; margin-bottom: 5px;">暂无最近添加的音乐</div>
+                    <div style="color: #666; font-size: 14px;">连接后将显示最近添加的音乐</div>
+                </div>
             </div>
         </div>
     </div>
+    
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .connection-tab {
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .connection-tab.active {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+        
+        .connection-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+        }
+        
+        body.dark-mode .connection-tabs {
+            border-bottom-color: #333;
+        }
+        
+        #connect-button:hover, #test-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        #disconnect-button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .view-button {
+            opacity: 0.5;
+            transition: opacity 0.3s ease;
+        }
+        
+        .view-button.active {
+            opacity: 1;
+        }
+    </style>
 
     <!-- 引入数据模型 -->
     <script src="data.js"></script>
@@ -479,5 +805,250 @@
     
     <!-- 引入应用逻辑 -->
     <script src="app.js"></script>
+    
+    <script>
+        // 主题切换功能
+        const themeToggle = document.getElementById('theme-toggle');
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            themeToggle.textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
+            // 保存用户主题偏好
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+        });
+        
+        // 加载用户主题偏好
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark-mode');
+            themeToggle.textContent = '☀️';
+        }
+        
+        // 标签切换功能增强
+        const tabItems = document.querySelectorAll('.tab-item');
+        const contentSections = document.querySelectorAll('.content-section');
+        
+        tabItems.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // 移除所有标签的active类
+                tabItems.forEach(item => item.classList.remove('active'));
+                // 给当前点击的标签添加active类
+                tab.classList.add('active');
+                
+                // 隐藏所有内容区域
+                contentSections.forEach(section => section.classList.remove('active'));
+                // 显示对应的内容区域
+                const targetSection = document.getElementById(`${tab.dataset.tab}-section`);
+                if (targetSection) {
+                    targetSection.classList.add('active');
+                    // 添加动画效果
+                    targetSection.style.animation = 'fadeIn 0.3s ease';
+                }
+            });
+        });
+        
+        // 歌曲卡片点击事件
+        const songCards = document.querySelectorAll('.song-card');
+        songCards.forEach(card => {
+            card.addEventListener('click', () => {
+                // 更新播放器信息
+                const songTitle = card.querySelector('.song-title').textContent;
+                const songArtist = card.querySelector('.song-artist').textContent;
+                const songCover = card.querySelector('.song-cover').src;
+                
+                document.querySelector('.mini-title').textContent = songTitle;
+                document.querySelector('.mini-artist').textContent = songArtist;
+                document.querySelector('.mini-cover').src = songCover;
+                
+                // 模拟播放
+                const playButton = document.getElementById('play-button');
+                playButton.innerHTML = '⏸';
+                isPlaying = true;
+                
+                // 更新进度条（模拟）
+                updateProgressBar();
+            });
+        });
+        
+        // 音量控制显示/隐藏
+        const volumeButton = document.getElementById('volume-button');
+        const volumeControl = document.getElementById('volume-control');
+        
+        volumeButton.addEventListener('click', () => {
+            volumeControl.style.display = volumeControl.style.display === 'flex' ? 'none' : 'flex';
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (!volumeControl.contains(e.target) && e.target !== volumeButton) {
+                volumeControl.style.display = 'none';
+            }
+        });
+        
+        // 音量滑块控制
+        const volumeSlider = document.getElementById('volume-slider');
+        volumeSlider.addEventListener('input', () => {
+            // 这里可以添加实际的音量控制
+            // player.setVolume(volumeSlider.value / 100);
+            console.log(`音量设置为: ${volumeSlider.value}%`);
+        });
+        
+        // 进度条交互
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const progressThumb = document.getElementById('progress-thumb');
+        const currentTimeDisplay = document.getElementById('current-time');
+        
+        progressContainer.addEventListener('click', (e) => {
+            const rect = progressContainer.getBoundingClientRect();
+            const position = (e.clientX - rect.left) / rect.width;
+            updateProgressPosition(position);
+            // 这里可以添加实际的音乐播放进度控制
+            // player.seekTo(position * player.duration);
+        });
+        
+        function updateProgressPosition(position) {
+            progressBar.style.width = `${position * 100}%`;
+            progressThumb.style.left = `${position * 100}%`;
+            
+            // 更新时间显示
+            const totalSeconds = 225; // 模拟总时长3:45
+            const currentSeconds = Math.floor(position * totalSeconds);
+            currentTimeDisplay.textContent = formatTime(currentSeconds);
+        }
+        
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+        }
+        
+        // 模拟进度条更新
+        let progressInterval;
+        function updateProgressBar() {
+            clearInterval(progressInterval);
+            let progress = 0;
+            progressInterval = setInterval(() => {
+                progress += 0.005;
+                if (progress >= 1) {
+                    clearInterval(progressInterval);
+                    playNextSong();
+                    return;
+                }
+                updateProgressPosition(progress);
+            }, 100);
+        }
+        
+        // 播放/暂停按钮切换
+        const playButton = document.getElementById('play-button');
+        let isPlaying = false;
+        
+        playButton.addEventListener('click', () => {
+            isPlaying = !isPlaying;
+            playButton.innerHTML = isPlaying ? '⏸' : '▶';
+            
+            if (isPlaying) {
+                updateProgressBar();
+            } else {
+                clearInterval(progressInterval);
+            }
+            // 这里可以添加实际的音乐播放/暂停控制
+            // if (isPlaying) player.play(); else player.pause();
+        });
+        
+        // 上一首/下一首按钮
+        document.getElementById('prev-button').addEventListener('click', () => {
+            playPreviousSong();
+        });
+        
+        document.getElementById('next-button').addEventListener('click', () => {
+            playNextSong();
+        });
+        
+        // 随机播放和重复播放按钮
+        const shuffleButton = document.getElementById('shuffle-button');
+        const repeatButton = document.getElementById('repeat-button');
+        let shuffleMode = false;
+        let repeatMode = false;
+        
+        shuffleButton.addEventListener('click', () => {
+            shuffleMode = !shuffleMode;
+            shuffleButton.style.color = shuffleMode ? 'var(--accent-color)' : '';
+        });
+        
+        repeatButton.addEventListener('click', () => {
+            repeatMode = !repeatMode;
+            repeatButton.style.color = repeatMode ? 'var(--accent-color)' : '';
+        });
+        
+        // 模拟播放上一首/下一首
+        function playPreviousSong() {
+            const songCards = document.querySelectorAll('.song-card');
+            const currentSong = document.querySelector('.mini-title').textContent;
+            let currentIndex = -1;
+            
+            songCards.forEach((card, index) => {
+                if (card.querySelector('.song-title').textContent === currentSong) {
+                    currentIndex = index;
+                }
+            });
+            
+            if (currentIndex > 0) {
+                songCards[currentIndex - 1].click();
+            } else {
+                songCards[songCards.length - 1].click();
+            }
+        }
+        
+        function playNextSong() {
+            const songCards = document.querySelectorAll('.song-card');
+            const currentSong = document.querySelector('.mini-title').textContent;
+            let currentIndex = -1;
+            
+            songCards.forEach((card, index) => {
+                if (card.querySelector('.song-title').textContent === currentSong) {
+                    currentIndex = index;
+                }
+            });
+            
+            if (currentIndex < songCards.length - 1) {
+                songCards[currentIndex + 1].click();
+            } else {
+                songCards[0].click();
+            }
+        }
+        
+        // Emby/NAS连接标签切换
+        const connectionTabs = document.querySelectorAll('.connection-tab');
+        connectionTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                connectionTabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                // 这里可以添加切换不同服务器连接表单的逻辑
+            });
+        });
+        
+        // 视图切换按钮
+        const viewButtons = document.querySelectorAll('.view-button');
+        viewButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                viewButtons.forEach(b => b.classList.remove('active'));
+                button.classList.add('active');
+                
+                const viewType = button.dataset.view;
+                const musicLibraries = document.getElementById('music-libraries');
+                
+                if (viewType === 'list') {
+                    musicLibraries.classList.remove('album-grid');
+                    musicLibraries.classList.add('song-list');
+                } else {
+                    musicLibraries.classList.remove('song-list');
+                    musicLibraries.classList.add('album-grid');
+                }
+            });
+        });
+        
+        // 添加页面加载动画
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.classList.add('loaded');
+        });
+    </script>
 </body>
 </html>
