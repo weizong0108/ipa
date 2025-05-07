@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart'; // 获取设备存储路径
 import 'package:shared_preferences/shared_preferences.dart'; // 本地数据持久化
 import 'package:connectivity_plus/connectivity_plus.dart'; // 网络连接状态检测
 import '../models/song.dart'; // 歌曲数据模型
+import 'package:rxdart/rxdart.dart'; // 响应式编程支持，用于组合多个流
 
 /// 音频播放服务类 - 负责管理音频播放、缓存和状态
 /// 提供完整的音乐播放功能，包括：
