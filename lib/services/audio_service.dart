@@ -3,6 +3,7 @@ import 'dart:io'; // 文件操作支持
 import 'dart:math' as math; // 数学计算支持
 import 'package:just_audio/just_audio.dart'; // 音频播放核心库
 import 'package:audio_service/audio_service.dart'; // 音频服务支持，提供后台播放能力
+import 'package:audio_session/audio_session.dart'; // 音频会话管理
 import 'package:path_provider/path_provider.dart'; // 获取设备存储路径
 import 'package:shared_preferences/shared_preferences.dart'; // 本地数据持久化
 import 'package:connectivity_plus/connectivity_plus.dart'; // 网络连接状态检测
