@@ -44,6 +44,22 @@ class AudioPlayerService {
   // 音频焦点管理 - 处理与其他应用的音频交互
   final AudioSession _audioSession = AudioSession();
   
+  // 智能预缓存系统 - 预加载下一首歌曲，减少切歌等待时间
+  bool _isPreCachingEnabled = true; // 是否启用预缓存功能
+  Song? _preCachedSong; // 已预缓存的歌曲
+  String? _preCachedPath; // 预缓存的本地路径
+  
+  // 音频淡入淡出效果 - 使歌曲切换更加平滑
+  final Duration _fadeInDuration = Duration(milliseconds: 500); // 淡入时长
+  final Duration _fadeOutDuration = Duration(milliseconds: 500); // 淡出时长
+  bool _isFadeEffectEnabled = true; // 是否启用淡入淡出效果
+  
+  // 播放统计系统 - 记录每首歌曲的播放次数和时长
+  final Map<String, int> _playCount = {}; // 歌曲播放次数统计 {歌曲ID: 播放次数}
+  final Map<String, int> _playDuration = {}; // 歌曲播放时长统计 {歌曲ID: 累计播放时长(秒)}
+  Timer? _playDurationTimer; // 播放时长计时器
+  final int _minPlayDurationForCount = 30; // 最小计入播放次数的时长(秒)
+  
   /// 构造函数 - 初始化播放器和加载缓存
   /// 完成三个关键初始化任务：
   /// 1. 初始化音频播放器和事件监听
@@ -52,6 +68,7 @@ class AudioPlayerService {
   AudioPlayerService() {
     _initAudioPlayer(); // 初始化播放器和事件监听
     _loadCacheInfo(); // 加载缓存信息
+    _loadPlayStatistics(); // 加载播放统计数据
     _setupAudioSession(); // 设置音频会话
   }
   
@@ -59,12 +76,24 @@ class AudioPlayerService {
   /// 设置必要的事件监听器，包括：
   /// 1. 播放完成事件 - 用于自动播放下一首
   /// 2. 错误处理 - 自动恢复播放和错误日志
+  /// 3. 播放状态监控 - 用于播放统计和预缓存
   Future<void> _initAudioPlayer() async {
     // 监听播放状态变化，处理播放完成事件
     _audioPlayer.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
         _onSongComplete(); // 歌曲播放完成时的处理逻辑
+      } else if (state.playing) {
+        // 播放状态下，启动播放时长统计
+        _startPlayDurationTracking();
+      } else {
+        // 暂停状态下，停止播放时长统计
+        _stopPlayDurationTracking();
       }
+    });
+    
+    // 监听播放进度，用于预缓存下一首歌曲
+    _audioPlayer.positionStream.listen((position) {
+      _checkAndPreCacheNextSong(position);
     });
     
     // 设置错误处理机制，增强应用稳定性
@@ -349,6 +378,195 @@ class AudioPlayerService {
     _saveCacheInfo();
   }
   
+  /// 智能预缓存系统 - 预加载下一首歌曲
+  /// 根据当前播放列表和播放模式，预测并缓存下一首可能播放的歌曲
+  /// 减少切歌时的等待时间，提升用户体验
+  Future<void> _startPreCachingNextSong() async {
+    // 如果预缓存功能未启用或播放列表为空，则不执行预缓存
+    if (!_isPreCachingEnabled || _playlist.isEmpty || _currentIndex < 0) {
+      return;
+    }
+    
+    // 预测下一首歌曲
+    Song? nextSong;
+    if (_isShuffleMode) {
+      // 随机模式下，随机选择一首不同的歌曲作为下一首
+      if (_playlist.length > 1) {
+        final random = math.Random();
+        int nextIndex;
+        do {
+          nextIndex = random.nextInt(_playlist.length);
+        } while (nextIndex == _currentIndex);
+        nextSong = _playlist[nextIndex];
+      }
+    } else {
+      // 顺序模式下，选择列表中的下一首
+      final nextIndex = (_currentIndex + 1) % _playlist.length;
+      nextSong = _playlist[nextIndex];
+    }
+    
+    // 如果找到了下一首歌曲且与当前预缓存的不同，则开始预缓存
+    if (nextSong != null && (_preCachedSong == null || nextSong.id != _preCachedSong!.id)) {
+      _preCachedSong = nextSong;
+      
+      // 检查网络状态，仅在WiFi环境下预缓存
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult == ConnectivityResult.wifi) {
+        print('开始预缓存下一首歌曲: ${nextSong.title}');
+        _preCachedPath = await _cacheSong(nextSong);
+        if (_preCachedPath != null) {
+          print('预缓存完成: ${nextSong.title}');
+        }
+      } else {
+        print('非WiFi环境，跳过预缓存');
+      }
+    }
+  }
+  
+  /// 检查并预缓存下一首歌曲
+  /// 根据当前播放进度决定是否开始预缓存
+  /// 通常在歌曲播放到70%位置时开始预缓存下一首
+  void _checkAndPreCacheNextSong(Duration position) async {
+    if (!_isPreCachingEnabled || _currentSong == null) return;
+    
+    final duration = _audioPlayer.duration;
+    if (duration != null) {
+      // 当播放进度达到70%时，开始预缓存下一首
+      if (position.inMilliseconds > duration.inMilliseconds * 0.7 && 
+          _preCachedSong == null) {
+        await _startPreCachingNextSong();
+      }
+    }
+  }
+  
+  /// 音频淡入效果
+  /// 逐渐增加音量，创造平滑的过渡效果
+  Future<void> _fadeInCurrentSong() async {
+    if (!_isFadeEffectEnabled) return;
+    
+    // 从0逐渐增加到1.0的音量
+    const fadeSteps = 20; // 淡入的步骤数
+    final stepDuration = _fadeInDuration.inMilliseconds ~/ fadeSteps; // 每步持续时间
+    
+    for (int i = 1; i <= fadeSteps; i++) {
+      final volume = i / fadeSteps; // 0.05, 0.1, 0.15, ..., 1.0
+      await _audioPlayer.setVolume(volume);
+      await Future.delayed(Duration(milliseconds: stepDuration));
+    }
+    
+    // 确保最终音量为1.0
+    await _audioPlayer.setVolume(1.0);
+  }
+  
+  /// 音频淡出效果
+  /// 逐渐降低音量，创造平滑的过渡效果
+  Future<void> _fadeOutCurrentSong() async {
+    if (!_isFadeEffectEnabled || !_audioPlayer.playing) return;
+    
+    // 从1.0逐渐降低到0的音量
+    const fadeSteps = 20; // 淡出的步骤数
+    final stepDuration = _fadeOutDuration.inMilliseconds ~/ fadeSteps; // 每步持续时间
+    final initialVolume = _audioPlayer.volume;
+    
+    for (int i = 1; i <= fadeSteps; i++) {
+      final volume = initialVolume * (fadeSteps - i) / fadeSteps; // 0.95, 0.9, ..., 0
+      await _audioPlayer.setVolume(volume);
+      await Future.delayed(Duration(milliseconds: stepDuration));
+    }
+    
+    // 确保最终音量为0
+    await _audioPlayer.setVolume(0.0);
+  }
+  
+  /// 更新播放统计信息
+  /// 记录歌曲播放次数
+  void _updatePlayStatistics(String songId) {
+    // 更新播放次数
+    _playCount[songId] = (_playCount[songId] ?? 0) + 1;
+    print('歌曲播放次数更新: $songId, 总次数: ${_playCount[songId]}');
+    
+    // 保存播放统计数据
+    _savePlayStatistics();
+  }
+  
+  /// 开始播放时长统计
+  /// 启动计时器，定期更新播放时长
+  void _startPlayDurationTracking() {
+    if (_currentSong == null) return;
+    
+    // 取消可能存在的旧计时器
+    _stopPlayDurationTracking();
+    
+    // 创建新计时器，每秒更新一次播放时长
+    _playDurationTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      if (_currentSong != null) {
+        final songId = _currentSong!.id;
+        _playDuration[songId] = (_playDuration[songId] ?? 0) + 1;
+      }
+    });
+  }
+  
+  /// 停止播放时长统计
+  /// 取消计时器，保存当前统计数据
+  void _stopPlayDurationTracking() {
+    _playDurationTimer?.cancel();
+    _playDurationTimer = null;
+    
+    // 保存播放统计数据
+    _savePlayStatistics();
+  }
+  
+  /// 保存播放统计数据到本地存储
+  Future<void> _savePlayStatistics() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // 转换播放次数为字符串列表
+      final playCountList = _playCount.entries.map((e) => '${e.key}|${e.value}').toList();
+      await prefs.setStringList('play_count', playCountList);
+      
+      // 转换播放时长为字符串列表
+      final playDurationList = _playDuration.entries.map((e) => '${e.key}|${e.value}').toList();
+      await prefs.setStringList('play_duration', playDurationList);
+      
+    } catch (e) {
+      print('保存播放统计数据失败: $e');
+    }
+  }
+  
+  /// 加载播放统计数据
+  Future<void> _loadPlayStatistics() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // 加载播放次数
+      final playCountList = prefs.getStringList('play_count') ?? [];
+      for (final item in playCountList) {
+        final parts = item.split('|');
+        if (parts.length == 2) {
+          final songId = parts[0];
+          final count = int.parse(parts[1]);
+          _playCount[songId] = count;
+        }
+      }
+      
+      // 加载播放时长
+      final playDurationList = prefs.getStringList('play_duration') ?? [];
+      for (final item in playDurationList) {
+        final parts = item.split('|');
+        if (parts.length == 2) {
+          final songId = parts[0];
+          final duration = int.parse(parts[1]);
+          _playDuration[songId] = duration;
+        }
+      }
+      
+      print('已加载播放统计数据: ${_playCount.length} 首歌曲的播放记录');
+    } catch (e) {
+      print('加载播放统计数据失败: $e');
+    }
+  }
+  
   // 公开API
   
   // 获取当前播放的歌曲
@@ -373,6 +591,22 @@ class AudioPlayerService {
   bool get isShuffleMode => _isShuffleMode;
   LoopMode get loopMode => _loopMode;
   
+  // 获取播放统计数据
+  Map<String, int> get playCount => Map.unmodifiable(_playCount);
+  Map<String, int> get playDuration => Map.unmodifiable(_playDuration);
+  
+  // 设置预缓存功能
+  void setPreCachingEnabled(bool enabled) {
+    _isPreCachingEnabled = enabled;
+    print('预缓存功能已${enabled ? "启用" : "禁用"}');
+  }
+  
+  // 设置淡入淡出效果
+  void setFadeEffectEnabled(bool enabled) {
+    _isFadeEffectEnabled = enabled;
+    print('淡入淡出效果已${enabled ? "启用" : "禁用"}');
+  }
+  
   // 设置播放列表
   Future<void> setPlaylist(List<Song> songs, {int initialIndex = 0}) async {
     _playlist.clear();
@@ -387,18 +621,48 @@ class AudioPlayerService {
   // 播放歌曲
   Future<void> playSong(Song song) async {
     try {
+      // 如果启用了淡出效果且当前正在播放，先执行淡出
+      if (_isFadeEffectEnabled && _audioPlayer.playing) {
+        await _fadeOutCurrentSong();
+      }
+      
       _currentSong = song;
       _updatePlayHistory(song.audioUrl);
       
-      // 尝试从缓存播放
-      final cachePath = await _cacheSong(song);
-      if (cachePath != null) {
-        await _audioPlayer.setFilePath(cachePath);
+      // 检查是否已预缓存该歌曲
+      String? audioPath;
+      if (_isPreCachingEnabled && _preCachedSong?.id == song.id && _preCachedPath != null) {
+        print('使用预缓存播放: ${song.title}');
+        audioPath = _preCachedPath;
+        // 清除预缓存引用，避免内存泄漏
+        _preCachedSong = null;
+        _preCachedPath = null;
+      } else {
+        // 尝试从缓存播放
+        audioPath = await _cacheSong(song);
+      }
+      
+      // 设置音频源
+      if (audioPath != null) {
+        await _audioPlayer.setFilePath(audioPath);
       } else {
         await _audioPlayer.setUrl(song.audioUrl);
       }
       
-      await _audioPlayer.play();
+      // 如果启用了淡入效果，设置音量为0并逐渐增加
+      if (_isFadeEffectEnabled) {
+        await _audioPlayer.setVolume(0.0);
+        await _audioPlayer.play();
+        await _fadeInCurrentSong();
+      } else {
+        await _audioPlayer.play();
+      }
+      
+      // 更新播放统计
+      _updatePlayStatistics(song.id);
+      
+      // 预缓存下一首歌曲
+      _startPreCachingNextSong();
     } catch (e) {
       print('播放歌曲失败: $e');
       // 尝试直接从URL播放
@@ -471,8 +735,9 @@ class AudioPlayerService {
     if (_isShuffleMode) {
       // 随机模式下随机选择一首（避免重复播放当前歌曲）
       if (_playlist.length > 1) {
+        final random = math.Random();
         do {
-          nextIndex = (DateTime.now().millisecondsSinceEpoch % _playlist.length).toInt();
+          nextIndex = random.nextInt(_playlist.length);
         } while (nextIndex == _currentIndex);
       } else {
         nextIndex = 0;
@@ -483,6 +748,14 @@ class AudioPlayerService {
     }
     
     _currentIndex = nextIndex;
+    
+    // 使用预缓存的歌曲（如果可用）
+    if (_isPreCachingEnabled && _preCachedSong?.id == _playlist[_currentIndex].id) {
+      print('播放下一首: 使用预缓存的歌曲 ${_playlist[_currentIndex].title}');
+    } else {
+      print('播放下一首: ${_playlist[_currentIndex].title}');
+    }
+    
     await playSong(_playlist[_currentIndex]);
   }
   
@@ -494,8 +767,9 @@ class AudioPlayerService {
     if (_isShuffleMode) {
       // 随机模式下随机选择一首
       if (_playlist.length > 1) {
+        final random = math.Random();
         do {
-          prevIndex = (DateTime.now().millisecondsSinceEpoch % _playlist.length).toInt();
+          prevIndex = random.nextInt(_playlist.length);
         } while (prevIndex == _currentIndex);
       } else {
         prevIndex = 0;
@@ -506,7 +780,17 @@ class AudioPlayerService {
     }
     
     _currentIndex = prevIndex;
+    print('播放上一首: ${_playlist[_currentIndex].title}');
+    
+    // 如果启用了淡出效果且当前正在播放，先执行淡出
+    if (_isFadeEffectEnabled && _audioPlayer.playing) {
+      await _fadeOutCurrentSong();
+    }
+    
     await playSong(_playlist[_currentIndex]);
+    
+    // 播放后重新启动预缓存系统
+    _startPreCachingNextSong();
   }
   
   // 设置循环模式
